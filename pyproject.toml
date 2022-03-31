@@ -1,36 +1,3 @@
-[tool.poetry]
-name = "qsar_flash"
-version = "0.0.1"
-description = ""
-authors = ["Rostislav Grigorev <r.grigoriev@innopolis.ru>"]
-
-[tool.poetry.dependencies]
-python = "~3.9"
-pip = "^22.0.4"
-lightning-flash = "^0.7.1"
-torch = {version = "1.11.0"}
-dgl-cu102 = {url = "https://data.dgl.ai/wheels/dgl_cu102-0.8.0-cp39-cp39-manylinux1_x86_64.whl"}
-torch-geometric = "^2.0.4"
-torch-cluster = {url = "https://data.pyg.org/whl/torch-1.11.0%2Bcu102/torch_cluster-1.6.0-cp39-cp39-linux_x86_64.whl"}
-torch-scatter = {url = "https://data.pyg.org/whl/torch-1.11.0%2Bcu102/torch_scatter-2.0.9-cp39-cp39-linux_x86_64.whl"}
-torch-sparse = {url = "https://data.pyg.org/whl/torch-1.11.0%2Bcu102/torch_sparse-0.6.13-cp39-cp39-linux_x86_64.whl"}
-torch-spline-conv = {url = "https://data.pyg.org/whl/torch-1.11.0%2Bcu102/torch_spline_conv-1.2.1-cp39-cp39-linux_x86_64.whl"}
-sympy = "^1.10.1"
-wandb = "^0.12.11"
-
-
-[tool.poetry.dev-dependencies]
-pytest = "^5.2"
-black = "^22.1.0"
-isort = "^5.10.1"
-flake8 = "^4.0.1"
-pre-commit = "^2.17.0"
-mypy = "^0.942"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
-
 [tool.isort]
 known_first_party = [
     "qsar_flash",
@@ -44,20 +11,3 @@ order_by_type = "False"
 line-length = 120
 
 [tool.flake8]
-max-line-length = 120
-exclude = ".tox,*.egg,build,temp"
-select = "E,W,F"
-doctests = "True"
-verbose = 2
-# https://pep8.readthedocs.io/en/latest/intro.html#error-codes
-format = "pylint"
-# see: https://www.flake8rules.com/
-ignore = [
-    "E731",  # Do not assign a lambda expression, use a def
-    "W504",  # Line break occurred after a binary operator
-    "F401",  # Module imported but unused
-    "F841",  # Local variable name is assigned to but never used
-    "W605",  # Invalid escape sequence 'x'
-    "F403", # Unable to detect undefined names
-    "E203",  # Whitespace before ':'
-]
