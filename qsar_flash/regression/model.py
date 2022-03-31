@@ -69,7 +69,7 @@ class GraphRegressor(RegressionTask):
             self.backbone, num_out_features = backbone
         else:
             self.backbone = self.backbones.get(backbone)(in_channels=num_features, **backbone_kwargs)
-            num_out_features = self.backbone.hidden_channels
+            num_out_features = self.backbone.hidden_channels  # type: ignore
 
         self.pooling_fn = POOLING_FUNCTIONS[pooling_fn] if isinstance(pooling_fn, str) else pooling_fn
 
@@ -122,7 +122,7 @@ class GraphRegressor(RegressionTask):
 
 
 class DefaultGraphHead(torch.nn.Module):
-    def __init__(self, hidden_channels, dropout=0.5):
+    def __init__(self, hidden_channels: int, dropout: float = 0.5):
         super().__init__()
         self.lin1 = Linear(hidden_channels, hidden_channels)
         self.lin2 = Linear(hidden_channels, 1)
