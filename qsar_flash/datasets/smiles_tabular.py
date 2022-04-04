@@ -1,6 +1,7 @@
-from typing import Any, Callable, Dict, Optional, Tuple, Union, Protocol
 from pathlib import Path
+from typing import Any, Callable, cast, Dict, Optional, Protocol, Tuple, Union
 
+import numpy as np
 import pandas as pd
 import torch
 from torch_geometric.data import Data, InMemoryDataset
@@ -20,7 +21,33 @@ class SmilesTabular(InMemoryDataset):
     def __init__(
         self,
         *,
-        data: Union[pd.DataFrame, str, Path],
+        df: pd.DataFrame,
+        name: str,
+        smiles_column_name: str = "smiles",
+        target_column_name: str = "target",
+        root: str = "data",
+        smiles2graph: Callable[[str], Dict[str, Any]] = smiles2graph,
+        transform=None,
+        pre_transform=None,
+        pre_filter=None,
+    ) -> None:
+        self.df = df
+        self.smiles_column_name = smiles_column_name
+        self.target_column_name = target_column_name
+        self.smiles2graph = smiles2graph
+        self.original_root = Path(root)
+        self.folder = self.original_root / name
+
+        super().__init__(str(self.folder), transform, pre_transform, pre_filter)
+
+        self.data, self.slices = self.load_processed_data()
+        self.data.z = self.data.z.long()
+
+    @classmethod
+    def read_csv(
+        cls,
+        reader: str,
+        *,
         name: str,
         smiles_column_name: str = "smiles",
         target_column_name: str = "target",
@@ -30,24 +57,43 @@ class SmilesTabular(InMemoryDataset):
         pre_transform=None,
         pre_filter=None,
         **pandas_kwargs,
-    ) -> None:
-        if isinstance(data, (str, Path)):
-            self.df = pd.read_csv(data, usecols=(smiles_column_name, target_column_name), **pandas_kwargs)
-        elif isinstance(data, pd.DataFrame):
-            self.df = data.loc[:, [smiles_column_name, target_column_name]]
-        else:
-            raise NotImplementedError("``SmilesTabular`` supports only Dataframe or path to csv input")
+    ):
 
-        self.smiles_column_name = smiles_column_name
-        self.target_column_name = target_column_name
-        self.smiles2graph = smiles2graph
-        self.original_root = Path(root)
-        self.folder = self.original_root / name
+        df = cast(pd.DataFrame, pd.read_csv(reader, usecols=(smiles_column_name, target_column_name), **pandas_kwargs))
+        return cls(
+            df=df,
+            name=name,
+            root=root,
+            smiles2graph=smiles2graph,
+            transform=transform,
+            pre_transform=pre_transform,
+            pre_filter=pre_filter,
+        )
 
-        super().__init__(self.folder, transform, pre_transform, pre_filter)
-
-        self.data, self.slices = self.load_processed_data()
-        self.data.z = self.data.z.long()
+    @classmethod
+    def read_df(
+        cls,
+        df: pd.DataFrame,
+        *,
+        name: str,
+        smiles_column_name: str = "smiles",
+        target_column_name: str = "target",
+        root: str = "data",
+        smiles2graph: Callable[[str], Dict[str, Any]] = smiles2graph,
+        transform=None,
+        pre_transform=None,
+        pre_filter=None,
+    ):
+        df = df.loc[:, [smiles_column_name, target_column_name]]
+        return cls(
+            df=df,
+            name=name,
+            root=root,
+            smiles2graph=smiles2graph,
+            transform=transform,
+            pre_transform=pre_transform,
+            pre_filter=pre_filter,
+        )
 
     @property
     def processed_file_names(self) -> str:
@@ -65,7 +111,7 @@ class SmilesTabular(InMemoryDataset):
 
         data_list = []
         for i in tqdm(range(len(smiles_list)), desc="Convering SMILES to Data"):
-            data: MolecularData = Data()
+            data: MolecularData = cast(MolecularData, Data())
 
             smiles = smiles_list[i]
             target = target_list[i]
@@ -88,16 +134,19 @@ class SmilesTabular(InMemoryDataset):
         if self.pre_transform is not None:
             data_list = [self.pre_transform(data) for data in data_list]
 
-        data, slices = self.collate(data_list)
+        data, slices = self.collate(data_list)  # type: ignore
         torch.save((data, slices), self.processed_paths[0])
 
     def load_processed_data(self) -> Tuple[MolecularData, Optional[Dict[str, torch.Tensor]]]:
         return torch.load(self.processed_paths[0])
 
+    def __getitem__(self, idx: Union[int, np.integer]) -> MolecularData:
+        return super().__getitem__(idx)  # type: ignore
+
 
 if __name__ == "__main__":
-    dataset = SmilesTabular(
-        data="data/mcl1/raw/mcl1_smiles.csv",
+    dataset = SmilesTabular.read_csv(
+        "data/mcl1/raw/mcl1_smiles.csv",
         name="mcl1",
         smiles_column_name="smiles",
         target_column_name="target",
