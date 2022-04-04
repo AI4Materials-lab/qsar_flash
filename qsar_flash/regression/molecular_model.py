@@ -44,7 +44,7 @@ class MolecularGraphRegressor(RegressionTask):
         self,
         backbone: Union[str, Tuple[nn.Module, int]] = "SchNet",
         backbone_kwargs: Optional[Dict] = {},
-        pooling_fn: Optional[Union[str, Callable]] = "mean",
+        pooling_fn: Union[str, Callable] = "mean",
         head: Optional[Union[Callable, nn.Module]] = None,
         loss_fn: LOSS_FN_TYPE = F.mse_loss,
         learning_rate: Optional[float] = None,
@@ -53,19 +53,19 @@ class MolecularGraphRegressor(RegressionTask):
         metrics: METRICS_TYPE = None,
     ):
         super().__init__(
-            loss_fn=loss_fn,
+            loss_fn=loss_fn,  # type: ignore
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
             metrics=metrics,
             learning_rate=learning_rate,
         )
 
-        self.save_hyperparameters(ignore=["metrics"])
+        self.save_hyperparameters(ignore=["metrics", "head"])
 
         if isinstance(backbone, tuple):
             self.backbone, num_out_features = backbone
         else:
-            self.backbone, num_out_features = self.backbones.get(backbone)(**backbone_kwargs)
+            self.backbone, num_out_features = self.backbones.get(backbone)(**backbone_kwargs)  # type: ignore
 
         self.pooling_fn = POOLING_FUNCTIONS[pooling_fn] if isinstance(pooling_fn, str) else pooling_fn
 

@@ -40,7 +40,7 @@ def smiles2graph(smiles_string: str) -> Dict[str, Any]:
         Dict[str, Any]: graph object.
     """
     salt_remover = SaltRemover(defnFormat="smarts")
-    mol = Chem.MolFromSmiles(smiles_string)
+    mol = Chem.MolFromSmiles(smiles_string)  # type: ignore
     mol = salt_remover.StripMol(mol)
     mol = generate_3d_coords(mol)
     # atoms
