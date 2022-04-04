@@ -71,7 +71,7 @@ class SchNetBackbone(nn.Module):
     def reset_parameters(self):
         self.embedding.reset_parameters()
         for interaction in self.interactions:
-            interaction.reset_parameters()
+            interaction.reset_parameters()  # type: ignore
 
     def forward(self, z, pos, batch=None):
         assert z.dim() == 1
