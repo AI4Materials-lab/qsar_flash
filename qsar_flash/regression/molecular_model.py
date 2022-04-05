@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Protocol, Tuple, Union
 
 import torch
 from torch import nn
@@ -17,6 +17,12 @@ from qsar_flash.regression.model import POOLING_FUNCTIONS
 
 
 from qsar_flash.backbones import MOLECULAR_GRAPH_BACKBONES
+
+
+class MolecularData(Protocol):
+    z: torch.Tensor
+    pos: torch.Tensor
+    batch: Optional[torch.Tensor]
 
 
 class MolecularGraphRegressor(RegressionTask):
@@ -111,7 +117,7 @@ class MolecularGraphRegressor(RegressionTask):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
         return super().predict_step(batch[DataKeys.INPUT], batch_idx, dataloader_idx=dataloader_idx)
 
-    def forward(self, data) -> torch.Tensor:
+    def forward(self, data: MolecularData) -> torch.Tensor:
         x = self.backbone(data.z, data.pos, data.batch)
         x = self.pooling_fn(x, data.batch)
         return self.head(x)

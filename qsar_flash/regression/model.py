@@ -1,17 +1,17 @@
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Protocol, Tuple, Union
 
 import torch
-from torch import nn
-from torch.nn import functional as F
-from torch.nn import Linear
-
-from flash.core.regression import RegressionTask
 from flash.core.data.io.input import DataKeys
+from flash.core.model import OutputKeys
 from flash.core.registry import FlashRegistry
+from flash.core.regression import RegressionTask
 from flash.core.utilities.imports import _GRAPH_AVAILABLE
 from flash.core.utilities.types import LOSS_FN_TYPE, LR_SCHEDULER_TYPE, METRICS_TYPE, OPTIMIZER_TYPE
 from flash.graph.backbones import GRAPH_BACKBONES
-from flash.core.model import OutputKeys
+from torch import nn
+from torch.nn import functional as F
+from torch.nn import Linear
+from torch_geometric.typing import Adj
 
 if _GRAPH_AVAILABLE:
     from torch_geometric.nn import global_add_pool, global_max_pool, global_mean_pool
@@ -19,6 +19,12 @@ if _GRAPH_AVAILABLE:
     POOLING_FUNCTIONS = {"mean": global_mean_pool, "add": global_add_pool, "max": global_max_pool}
 else:
     POOLING_FUNCTIONS = {}
+
+
+class GraphData(Protocol):
+    x: torch.Tensor
+    edge_index: Adj
+    batch: Optional[torch.Tensor]
 
 
 class GraphRegressor(RegressionTask):
@@ -47,7 +53,7 @@ class GraphRegressor(RegressionTask):
         num_features: int,
         backbone: Union[str, Tuple[nn.Module, int]] = "GCN",
         backbone_kwargs: Optional[Dict] = {},
-        pooling_fn: Optional[Union[str, Callable]] = "mean",
+        pooling_fn: Union[str, Callable] = "mean",
         head: Optional[Union[Callable, nn.Module]] = None,
         loss_fn: LOSS_FN_TYPE = F.mse_loss,
         learning_rate: Optional[float] = None,
@@ -56,7 +62,7 @@ class GraphRegressor(RegressionTask):
         metrics: METRICS_TYPE = None,
     ):
         super().__init__(
-            loss_fn=loss_fn,
+            loss_fn=loss_fn,  # type: ignore
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
             metrics=metrics,
@@ -68,7 +74,7 @@ class GraphRegressor(RegressionTask):
         if isinstance(backbone, tuple):
             self.backbone, num_out_features = backbone
         else:
-            self.backbone = self.backbones.get(backbone)(in_channels=num_features, **backbone_kwargs)
+            self.backbone = self.backbones.get(backbone)(in_channels=num_features, **backbone_kwargs)  # type: ignore
             num_out_features = self.backbone.hidden_channels  # type: ignore
 
         self.pooling_fn = POOLING_FUNCTIONS[pooling_fn] if isinstance(pooling_fn, str) else pooling_fn
@@ -115,7 +121,7 @@ class GraphRegressor(RegressionTask):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
         return super().predict_step(batch[DataKeys.INPUT], batch_idx, dataloader_idx=dataloader_idx)
 
-    def forward(self, data) -> torch.Tensor:
+    def forward(self, data: GraphData) -> torch.Tensor:
         x = self.backbone(data.x, data.edge_index)
         x = self.pooling_fn(x, data.batch)
         return self.head(x)
