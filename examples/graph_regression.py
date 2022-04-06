@@ -36,9 +36,9 @@ def main() -> None:
     trainer = flash.Trainer(max_epochs=1, gpus=[0])
     trainer.fit(model, datamodule=datamodule)
 
-    # 4. Regressify some graphs!
+    # 4. Regress some graphs!
     datamodule = GraphRegressionData.from_datasets(
-        predict_dataset=dataset[:100],
+        predict_dataset=dataset[:100],  # type: ignore
         batch_size=64,
     )
     predictions = trainer.predict(model, datamodule=datamodule)
