@@ -1,4 +1,4 @@
-__version__ = "0.0.1"
+__version__ = "0.1.1"
 __author__ = "AI4Materials-lab et al."
 __author_email__ = ""
 __license__ = "Apache-2.0"
