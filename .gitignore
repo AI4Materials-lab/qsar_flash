@@ -163,3 +163,6 @@ lightning_logs/
 data/
 
 .lr_find_*
+
+pip.conf
+.pypirc
