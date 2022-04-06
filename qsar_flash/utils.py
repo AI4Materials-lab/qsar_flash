@@ -20,10 +20,10 @@ def generate_3d_coords(mol: Chem.rdchem.Mol, random_seed: int = 0) -> Chem.rdche
         Chem.rdchem.Mol: RdKit molecular object with conformer.
     """
 
-    mol = Chem.AddHs(mol)
-    AllChem.EmbedMolecule(mol, useRandomCoords=False, randomSeed=random_seed)
-    AllChem.MMFFOptimizeMoleculeConfs(mol)
-    mol = Chem.RemoveHs(mol)
+    mol = Chem.AddHs(mol)  # type: ignore
+    AllChem.EmbedMolecule(mol, useRandomCoords=False, randomSeed=random_seed)  # type: ignore
+    AllChem.MMFFOptimizeMoleculeConfs(mol)  # type: ignore
+    mol = Chem.RemoveHs(mol)  # type: ignore
     return mol
 
 
