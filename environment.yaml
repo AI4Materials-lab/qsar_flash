@@ -17,5 +17,8 @@ dependencies:
   - sympy=1.10.1
   - wandb=0.12.11
   - pre-commit=2.17.0
+  - ase=3.22.1
   - pip:
     - class-resolver==0.3.8
+platforms:
+  - linux-64

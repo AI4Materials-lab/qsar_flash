@@ -166,3 +166,5 @@ data/
 
 pip.conf
 .pypirc
+
+graph-drug/
