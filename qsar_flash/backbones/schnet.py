@@ -1,7 +1,8 @@
+from typing import Optional
 import torch
 from torch_cluster import radius_graph
 from torch import nn
-from torch_geometric.nn.models.schnet import GaussianSmearing, InteractionBlock
+from torch_geometric.nn.models.schnet import GaussianSmearing, InteractionBlock, ShiftedSoftplus
 
 
 class SchNetBackbone(nn.Module):
@@ -48,6 +49,8 @@ class SchNetBackbone(nn.Module):
         num_gaussians: int = 50,
         cutoff: float = 10.0,
         max_num_neighbors: int = 32,
+        mean: Optional[float] = None,
+        std: Optional[float] = None,
     ):
         super().__init__()
 
@@ -57,6 +60,8 @@ class SchNetBackbone(nn.Module):
         self.num_gaussians = num_gaussians
         self.cutoff = cutoff
         self.max_num_neighbors = max_num_neighbors
+        self.mean = mean
+        self.std = std
 
         self.embedding = nn.Embedding(100, hidden_channels)
         self.distance_expansion = GaussianSmearing(0.0, cutoff, num_gaussians)
@@ -66,12 +71,20 @@ class SchNetBackbone(nn.Module):
             block = InteractionBlock(hidden_channels, num_gaussians, num_filters, cutoff)
             self.interactions.append(block)
 
+        self.lin1 = nn.Linear(hidden_channels, hidden_channels // 2)
+        self.act = ShiftedSoftplus()
+        self.lin2 = nn.Linear(hidden_channels // 2, 1)
+
         self.reset_parameters()
 
     def reset_parameters(self):
         self.embedding.reset_parameters()
         for interaction in self.interactions:
             interaction.reset_parameters()  # type: ignore
+        torch.nn.init.xavier_uniform_(self.lin1.weight)
+        self.lin1.bias.data.fill_(0)
+        torch.nn.init.xavier_uniform_(self.lin2.weight)
+        self.lin2.bias.data.fill_(0)
 
     def forward(self, z, pos, batch=None):
         assert z.dim() == 1
@@ -86,6 +99,13 @@ class SchNetBackbone(nn.Module):
 
         for interaction in self.interactions:
             h = h + interaction(h, edge_index, edge_weight, edge_attr)
+
+        h = self.lin1(h)
+        h = self.act(h)
+        h = self.lin2(h)
+
+        if self.mean is not None and self.std is not None:
+            h = h * self.std + self.mean
 
         return h
 

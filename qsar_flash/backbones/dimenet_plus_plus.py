@@ -205,8 +205,13 @@ class DimeNetPlusPlusBackbone(torch.nn.Module):
         num_after_skip=2,
         num_output_layers=3,
         act=F.silu,
+        mean=None,
+        std=None,
     ):
         super().__init__()
+
+        self.mean = mean
+        self.std = std
 
         self.cutoff = cutoff
 
@@ -311,5 +316,8 @@ class DimeNetPlusPlusBackbone(torch.nn.Module):
         for interaction_block, output_block in zip(self.interaction_blocks, self.output_blocks[1:]):  # type: ignore
             x = interaction_block(x, rbf, sbf, idx_kj, idx_ji)
             P += output_block(x, rbf, i, num_nodes=pos.size(0))
+
+        if self.mean is not None and self.std is not None:
+            P = P * self.std + self.mean
 
         return P
