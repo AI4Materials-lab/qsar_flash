@@ -3,6 +3,7 @@ from flash.core.registry import FlashRegistry
 from qsar_flash.backbones.schnet import SchNetBackbone
 from qsar_flash.backbones.dimenet import DimeNetBackbone
 from qsar_flash.backbones.dimenet_plus_plus import DimeNetPlusPlusBackbone
+from qsar_flash.backbones.edge_update_net import EdgeUpdateNetBackbone
 
 MOLECULAR_GRAPH_BACKBONES = FlashRegistry("backbones")
 
@@ -15,6 +16,7 @@ def load_schnet(
     num_gaussians: int = 50,
     cutoff: float = 10,
     max_num_neighbors: int = 32,
+    out_channels=1,
     **_
 ):
     schnet = SchNetBackbone(
@@ -24,11 +26,12 @@ def load_schnet(
         num_gaussians=num_gaussians,
         cutoff=cutoff,
         max_num_neighbors=max_num_neighbors,
+        out_channels=out_channels,
     )
 
     return (
         schnet,
-        hidden_channels,
+        out_channels,
     )
 
 
@@ -102,5 +105,21 @@ def load_dimenetpp(
 
     return (
         dimenetpp,
+        out_channels,
+    )
+
+
+@MOLECULAR_GRAPH_BACKBONES(name="EdgeUpdateNet")
+def load_edge_update_net(hidden_channels=64, num_interactions=6, num_gaussians=100, cutoff=10.0, out_channels=1, **_):
+    edge_update_net = EdgeUpdateNetBackbone(
+        C=hidden_channels,
+        num_interactions=num_interactions,
+        num_gaussians=num_gaussians,
+        cutoff=cutoff,
+        out_channels=out_channels,
+    )
+
+    return (
+        edge_update_net,
         out_channels,
     )

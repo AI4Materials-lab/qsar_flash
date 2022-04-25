@@ -51,6 +51,7 @@ class SchNetBackbone(nn.Module):
         max_num_neighbors: int = 32,
         mean: Optional[float] = None,
         std: Optional[float] = None,
+        out_channels=1,
     ):
         super().__init__()
 
@@ -73,7 +74,7 @@ class SchNetBackbone(nn.Module):
 
         self.lin1 = nn.Linear(hidden_channels, hidden_channels // 2)
         self.act = ShiftedSoftplus()
-        self.lin2 = nn.Linear(hidden_channels // 2, 1)
+        self.lin2 = nn.Linear(hidden_channels // 2, out_channels)
 
         self.reset_parameters()
 

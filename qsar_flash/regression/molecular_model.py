@@ -54,6 +54,8 @@ class MolecularGraphRegressor(RegressionTask):
         optimizer: OPTIMIZER_TYPE = "Adam",
         lr_scheduler: LR_SCHEDULER_TYPE = None,
         metrics: METRICS_TYPE = None,
+        mean: Optional[float] = None,
+        std: Optional[float] = None,
     ):
         self.save_hyperparameters(ignore=["metrics", "head"])
 
@@ -64,6 +66,9 @@ class MolecularGraphRegressor(RegressionTask):
             metrics=metrics,
             learning_rate=learning_rate,
         )
+
+        self.mean = mean
+        self.std = std
 
         if isinstance(backbone, tuple):
             self.backbone, num_out_features = backbone
@@ -79,7 +84,8 @@ class MolecularGraphRegressor(RegressionTask):
             self.head = nn.Identity(num_out_features)
 
     def training_step(self, batch: Any, batch_idx: int) -> Any:
-        batch = (batch[DataKeys.INPUT], batch[DataKeys.TARGET])
+        target = self.prepare_target(batch[DataKeys.TARGET])
+        batch = (batch[DataKeys.INPUT], target)
         output = self.step(batch, batch_idx, self.train_metrics)
         self.log_dict(
             {f"train/{k}": v for k, v in output[OutputKeys.LOGS].items()},
@@ -91,7 +97,8 @@ class MolecularGraphRegressor(RegressionTask):
         return output[OutputKeys.LOSS]
 
     def validation_step(self, batch: Any, batch_idx: int) -> Any:
-        batch = (batch[DataKeys.INPUT], batch[DataKeys.TARGET])
+        target = self.prepare_target(batch[DataKeys.TARGET])
+        batch = (batch[DataKeys.INPUT], target)
         output = self.step(batch, batch_idx, self.val_metrics)
         self.log_dict(
             {f"val/{k}": v for k, v in output[OutputKeys.LOGS].items()},
@@ -102,7 +109,8 @@ class MolecularGraphRegressor(RegressionTask):
         )
 
     def test_step(self, batch: Any, batch_idx: int) -> Any:
-        batch = (batch[DataKeys.INPUT], batch[DataKeys.TARGET])
+        target = self.prepare_target(batch[DataKeys.TARGET])
+        batch = (batch[DataKeys.INPUT], target)
         output = self.step(batch, batch_idx, self.test_metrics)
         self.log_dict(
             {f"test/{k}": v for k, v in output[OutputKeys.LOGS].items()},
@@ -114,6 +122,19 @@ class MolecularGraphRegressor(RegressionTask):
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
         return super().predict_step(batch[DataKeys.INPUT], batch_idx, dataloader_idx=dataloader_idx)
+
+    def normalize(self, x: torch.Tensor) -> torch.Tensor:
+        return (x - self.mean) / self.std
+
+    def prepare_target(self, x: torch.Tensor) -> torch.Tensor:
+        if self.mean is not None and self.std is not None:
+            return self.normalize(x)
+        return x
+
+    def to_metrics_format(self, x: torch.Tensor) -> torch.Tensor:
+        if self.mean is not None and self.std is not None:
+            return x * self.std + self.mean
+        return x
 
     def forward(self, data: MolecularData) -> torch.Tensor:
         x = self.backbone(data.z, data.pos, data.batch)
