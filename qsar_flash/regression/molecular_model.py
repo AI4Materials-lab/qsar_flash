@@ -3,15 +3,12 @@ from typing import Any, Callable, Dict, Optional, Protocol, Tuple, Union
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torch.nn import Linear
 
 from flash.core.regression import RegressionTask
 from flash.core.data.io.input import DataKeys
 from flash.core.registry import FlashRegistry
 from flash.core.utilities.types import LOSS_FN_TYPE, LR_SCHEDULER_TYPE, METRICS_TYPE, OPTIMIZER_TYPE
 from flash.core.model import OutputKeys
-
-from torch_geometric.nn.models.schnet import ShiftedSoftplus
 
 from qsar_flash.regression.model import POOLING_FUNCTIONS
 
@@ -49,7 +46,7 @@ class MolecularGraphRegressor(RegressionTask):
     def __init__(
         self,
         backbone: Union[str, Tuple[nn.Module, int]] = "SchNet",
-        backbone_kwargs: Optional[Dict] = {},
+        backbone_kwargs: Optional[Dict] = None,
         pooling_fn: Union[str, Callable] = "mean",
         head: Optional[Union[Callable, nn.Module]] = None,
         loss_fn: LOSS_FN_TYPE = F.mse_loss,
@@ -57,7 +54,11 @@ class MolecularGraphRegressor(RegressionTask):
         optimizer: OPTIMIZER_TYPE = "Adam",
         lr_scheduler: LR_SCHEDULER_TYPE = None,
         metrics: METRICS_TYPE = None,
+        mean: Optional[float] = None,
+        std: Optional[float] = None,
     ):
+        self.save_hyperparameters(ignore=["metrics", "head"])
+
         super().__init__(
             loss_fn=loss_fn,  # type: ignore
             optimizer=optimizer,
@@ -66,11 +67,13 @@ class MolecularGraphRegressor(RegressionTask):
             learning_rate=learning_rate,
         )
 
-        self.save_hyperparameters(ignore=["metrics", "head"])
+        self.mean = mean
+        self.std = std
 
         if isinstance(backbone, tuple):
             self.backbone, num_out_features = backbone
         else:
+            backbone_kwargs = {} if backbone_kwargs is None else backbone_kwargs
             self.backbone, num_out_features = self.backbones.get(backbone)(**backbone_kwargs)  # type: ignore
 
         self.pooling_fn = POOLING_FUNCTIONS[pooling_fn] if isinstance(pooling_fn, str) else pooling_fn
@@ -78,10 +81,11 @@ class MolecularGraphRegressor(RegressionTask):
         if head is not None:
             self.head = head
         else:
-            self.head = DefaultMolecularGraphHead(num_out_features)
+            self.head = nn.Identity(num_out_features)
 
     def training_step(self, batch: Any, batch_idx: int) -> Any:
-        batch = (batch[DataKeys.INPUT], batch[DataKeys.TARGET])
+        target = self.prepare_target(batch[DataKeys.TARGET])
+        batch = (batch[DataKeys.INPUT], target)
         output = self.step(batch, batch_idx, self.train_metrics)
         self.log_dict(
             {f"train/{k}": v for k, v in output[OutputKeys.LOGS].items()},
@@ -93,7 +97,8 @@ class MolecularGraphRegressor(RegressionTask):
         return output[OutputKeys.LOSS]
 
     def validation_step(self, batch: Any, batch_idx: int) -> Any:
-        batch = (batch[DataKeys.INPUT], batch[DataKeys.TARGET])
+        target = self.prepare_target(batch[DataKeys.TARGET])
+        batch = (batch[DataKeys.INPUT], target)
         output = self.step(batch, batch_idx, self.val_metrics)
         self.log_dict(
             {f"val/{k}": v for k, v in output[OutputKeys.LOGS].items()},
@@ -104,7 +109,8 @@ class MolecularGraphRegressor(RegressionTask):
         )
 
     def test_step(self, batch: Any, batch_idx: int) -> Any:
-        batch = (batch[DataKeys.INPUT], batch[DataKeys.TARGET])
+        target = self.prepare_target(batch[DataKeys.TARGET])
+        batch = (batch[DataKeys.INPUT], target)
         output = self.step(batch, batch_idx, self.test_metrics)
         self.log_dict(
             {f"test/{k}": v for k, v in output[OutputKeys.LOGS].items()},
@@ -117,26 +123,20 @@ class MolecularGraphRegressor(RegressionTask):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
         return super().predict_step(batch[DataKeys.INPUT], batch_idx, dataloader_idx=dataloader_idx)
 
+    def normalize(self, x: torch.Tensor) -> torch.Tensor:
+        return (x - self.mean) / self.std
+
+    def prepare_target(self, x: torch.Tensor) -> torch.Tensor:
+        if self.mean is not None and self.std is not None:
+            return self.normalize(x)
+        return x
+
+    def to_metrics_format(self, x: torch.Tensor) -> torch.Tensor:
+        if self.mean is not None and self.std is not None:
+            return x * self.std + self.mean
+        return x
+
     def forward(self, data: MolecularData) -> torch.Tensor:
         x = self.backbone(data.z, data.pos, data.batch)
         x = self.pooling_fn(x, data.batch)
         return self.head(x)
-
-
-class DefaultMolecularGraphHead(torch.nn.Module):
-    def __init__(self, hidden_channels: int, dropout: float = 0.5):
-        super().__init__()
-        self.lin1 = Linear(hidden_channels, hidden_channels)
-        self.lin2 = Linear(hidden_channels, 1)
-        self.dropout = dropout
-        self.act = ShiftedSoftplus()
-
-    def reset_parameters(self):
-        torch.nn.init.xavier_uniform_(self.lin1.weight)
-        torch.nn.init.xavier_uniform_(self.lin2.weight)
-        self.lin2.bias.data.fill_(0)
-
-    def forward(self, x):
-        x = self.act(self.lin1(x))
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        return self.lin2(x)
